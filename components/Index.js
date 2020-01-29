@@ -1,40 +1,10 @@
 import React from 'react';
-import { Text, View, StyleSheet, FlatList, ScrollView } from 'react-native';
+import { Text, View, StyleSheet, FlatList, ScrollView, Alert, ImageBackground, ActivityIndicator } from 'react-native';
 import * as firebase from "firebase";
-import { MaterialIcons } from '@expo/vector-icons';
+import { SimpleLineIcons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import QuestionnaireItem from "./QuestionnaireItem";
 
-/*
-const questions = {
-  "array": [
-    {
-      "Domanda": "DOMANDA N. 1: Chi è il personaggio più puccioso degli anime?",
-      "A": "Filo",
-      "B": "Nezuko",
-      "C": "Phil",
-      "D": "Charmy",
-      "Esatta": "A"
-    },
-    {
-      "Domanda": "DOMANDA N. 2",
-      "A": "Risposta A",
-      "B": "Risposta B",
-      "C": "Risposta C",
-      "D": "Risposta D",
-      "Esatta": "C"
-    },
-    {
-      "Domanda": "DOMANDA N. 3",
-      "A": "Risposta A",
-      "B": "Risposta B",
-      "C": "Risposta C",
-      "D": "Risposta D",
-      "Esatta": "D"
-    }
-  ]
-}
-*/
 
 export default class Index extends React.Component {
 
@@ -43,6 +13,9 @@ export default class Index extends React.Component {
         cognome: "",
         question: [],
         nameQuestionnaire: [],
+        resultQuestionnaire: [],   
+        control: 0,
+        isLoading: true,
     }
 
     static navigationOptions = ({navigation}) => {
@@ -56,11 +29,11 @@ export default class Index extends React.Component {
             },
             headerTintColor: "black",
             headerTitleStyle: {  
-            flex: 1,
-            textAlign: "center",    
-            marginBottom: 40,
-            fontWeight: "bold",
-            fontSize: 28 
+                flex: 1,
+                textAlign: "center",    
+                marginBottom: 40,
+                fontWeight: "bold",
+                fontSize: 28 
             },
             headerRight: (
                 <View></View>
@@ -69,78 +42,215 @@ export default class Index extends React.Component {
                 <View>
                     <TouchableOpacity 
                       onPress={ () => navigation.goBack()}>
-                      <MaterialIcons 
-                        style={{paddingHorizontal: 5, marginBottom: 32}}
-                        name={"arrow-back"}
-                        size={35} 
-                        color={"black"}
+                      <SimpleLineIcons 
+                        name="logout"
+                        size={30}
+                        style={{marginBottom: 38, marginHorizontal: 15}}
                       />
                     </TouchableOpacity>          
                 </View>
-              ),
+            ),
         }
+    }
+
+    componentWillMount() {
+        setTimeout(() => {
+            this.setState({isLoading: false});
+        }, 1300)   
+    }
+
+    _loadState = (elementsUser, questions, nameQuestions, nameResponse) => {
+        let response = elementsUser.ResultQuestionnaires;
+        let nameList = [];
+        let list = [];
+        let resultList = [];
+        for(var i = 0; i < nameResponse.length; i++) {
+            let splitter = nameResponse[i].split("_");
+            let code_test = splitter[splitter.length-1];
+            for(var j = 0; j < nameQuestions.length; j++) {
+                if(code_test === nameQuestions[j].split("_")[0]) {
+                    nameList[i] = nameQuestions[j];
+                    questions[nameQuestions[j]].result = true;
+                    let data = Object.values(response[nameResponse[i]]);
+                    questions[nameQuestions[j]].punteggio = data[0].punteggio;
+                    questions[nameQuestions[j]].numQuestions = data[0].array.length;
+                    list[i] = questions[nameQuestions[j]];
+                    resultList[i] = data[0].array;
+                    j = nameQuestions.length;
+                }
+            }
+        }                  
+        this.setState({nome: elementsUser.Nome, cognome: elementsUser.Cognome, question: list, nameQuestionnaire: nameList, resultQuestionnaire: resultList, control: this.state.control + 1});
     }
 
     componentDidMount() {
         const currentUID = firebase.auth().currentUser.uid;
         if(currentUID) {
             this.path = "/users/" + currentUID;
+            var questions;
+            firebase.database().ref("QuestionsQuestionnaires").on("value", snap => {
+                questions = snap.val();
+            });
             firebase.database().ref(this.path).on("value", snap => {
-                this.setState({nome: snap.val().Nome, cognome: snap.val().Cognome});
+                if(this.state.control === 0) {
+                    let nameQuestions = Object.keys(questions);
+                    let elementsUser = snap.val();
+                    let nameResponse = Object.keys(elementsUser.ResultQuestionnaires);              
+                    this._loadState(elementsUser, questions, nameQuestions, nameResponse);
+                }
             })
         }
     }
 
+    _unsolvedQuestionnaire = (nameState, namesDB) => {
+        let bool = false;
+        let name;
+        for(var i = 0; i < namesDB.length; i++) {
+            for(var j = 0; j < nameState.length; j++) {
+                if(nameState[j] === namesDB[i]) {
+                    bool = true;
+                    j = nameState.length;
+                }
+            }
+            if(!bool) {
+                name = namesDB[i];
+                break;
+            }
+            bool = false;
+        }    
+        return name;
+    }
+    
     _loadQuestionnaire = () => {
-        console.log("dentro loadQuestionnaire");
-        firebase.database().ref(this.path).on("value", snap => {
-            let questionnaires = snap.val().ListQuestoinnaires.QuestionsQuestionnaires;
-         //   console.log("Dati contenuti nel db: ", Object.keys(questionnaires));  // Object.keys(questionnaires) serve ad estrapolare il nome delle proprietà dell'oggetto passato come parametro
-            let name = Object.keys(questionnaires)[0];   // prelevamento temporaneo dei dati in questo modo. Successivamente considerare più questionari e sistemarlo
-            //    console.log("nome: ", name);
-            let array = [questionnaires[name]];   // per accedere al valore del nome della proprietà salvata in una variabile, utilizzare la sintassi accanto
-            this.setState({question: array});
+        let path = "QuestionsQuestionnaires";
+        firebase.database().ref(path).on("value", snap => { 
+            let questionnaires = snap.val();
+            let nameState = this.state.nameQuestionnaire;   
+            let namesDB = Object.keys(questionnaires);     
+            let name = this._unsolvedQuestionnaire(nameState, namesDB);
+            if(name) {
+                let listName = [...this.state.nameQuestionnaire, name];
+                let array = [questionnaires[name]];   
+                array[0].result = false;
+                let finalList = [...this.state.question, ...array];
+                this.setState({question: finalList, nameQuestionnaire: listName});
+            }
+            else {
+                Alert.alert(
+                    'Caricamento fallito',
+                    'Attualmente non sono disponibili nuovi questionari!',
+                    [
+                      {text: 'OK', onPress: () => console.log('OK Pressed')},
+                    ],
+                    {cancelable: false},
+                );
+            }
         })
     }
 
-    _result = item => {
+    _showResult = (item, length, index) => {
+        let container = this.state.question.map( (lang, i) => {
+            if(index == i) {
+                let obj = {
+                    array: lang.array,
+                    result: true,
+                    punteggio: item.punteggio,
+                    numQuestions: length,
+                }
+                return obj;
+            }
+            return lang;
+        })
+        this.setState({question: container});
+    }
+            
+    _uploadResponse = item => {
+        let fileName = item.Cognome + "_" + item.Nome + "_" + item.Codice_test;
+        let path = this.path + "/ResultQuestionnaires";
+        firebase.database().ref(path).child(fileName).push(item);  
+    }
+
+    _score = (item, index) => {
         let obj = {};
-        let scoreList = this.state.question[0].array.map( (child, index) => {
-            if(child.Esatta == item[index].response) {
+        let scoreList = this.state.question[index].array.map( (child, index) => {
+            if(child.Esatta == item[index].Risposta) {
                 obj = {
-                    Risposta: item[index].response,
+                    Risposta: item[index].Risposta,
                     punti: 1,
                 }
             }
             else {
                 obj = {
-                    Risposta: item[index].response,
+                    Risposta: item[index].Risposta,
                     punti: 0,
                 }
             }
             return obj;
         })
-       let sommaPunti = 0;
-       for(var i = 0; i < scoreList.length; i++) {
-           sommaPunti += scoreList[i].punti;
-       }
-       let result = {
+        return scoreList;
+    }
+
+    _totalPoints = scoreList => {
+        let sommaPunti = 0;
+        for(var i = 0; i < scoreList.length; i++) {
+            sommaPunti += scoreList[i].punti;
+        }
+        return sommaPunti;
+    }
+
+    _findNameTest = splitter => {
+        let name_test = "";
+        for(let i = 1; i < splitter.length; i++) {
+            if(i < splitter.length-1) name_test += splitter[i] + "_";
+            else name_test += splitter[i];
+        }
+        return name_test;
+    }
+
+    _result = (item, index) => {
+        let scoreList = this._score(item, index);
+        let points = this._totalPoints(scoreList);
+        let date = new Date();         
+        let splitter = this.state.nameQuestionnaire[index].split("_");       
+        let code_test = splitter[0];
+        let name_test = this._findNameTest(splitter);
+        let result = {
+           Cognome: this.state.cognome,
+           Nome: this.state.nome,
+           Data: date.getDate() + '/' + (date.getMonth() +1) + '/' + date.getFullYear(),
+           Ora: date.getHours() + ':' + date.getMinutes(),
+           Codice_test: code_test,
+           Nome_test: name_test,
            array: scoreList,
-           punteggio: sommaPunti,
-       }
-       console.log("Risultato finale: ", result);
+           punteggio: points,
+        }
+        this._uploadResponse(result);  
+        this._showResult(result, this.state.question[index].array.length, index);
+        let resultList = this.state.resultQuestionnaire;
+        resultList[index] = item;
+        this.setState({resultQuestionnaire: resultList});
     }
 
-    _question = () => {
-        this.props.navigation.navigate("Question", {
-            list: this.state.question,
-            onResult: obj => this._result(obj) 
-        });
+    _question = index => {
+        console.log("Dentro _question! Questionario corrente: ", this.state.nameQuestionnaire[index]);
+        if(this.state.resultQuestionnaire[index] != undefined) {
+            this.props.navigation.navigate("Question", {
+                list: this.state.question[index],
+                resultList: this.state.resultQuestionnaire[index],   
+                onResult: obj => this._result(obj, index) 
+            });
+        }
+        else {
+            this.props.navigation.navigate("Question", {
+                list: this.state.question[index],
+                onResult: obj => this._result(obj, index) 
+            });
+        }
     }
 
-    _renderElements = ({item}) => {
+    _renderElements = ({item, index}) => {
         return (
-            <QuestionnaireItem data={item} name={this.state.nameQuestionnaire} onQuestion={this._question} /> 
+            <QuestionnaireItem data={item} name={this.state.nameQuestionnaire[index]} score={this.state.question[index]} onQuestion={ () => this._question(index)} /> 
         )
     }
 
@@ -150,30 +260,38 @@ export default class Index extends React.Component {
 
     render() {
         return (
-            <ScrollView>
-                <View style={styles.container}>
-                    <View style={styles.userData}>
-                        <View>
+            <ImageBackground 
+                source={{ uri: "https://www.cassaedilepg.it/images/slides/libri-scolastici.jpg" }}
+                style={{width: '100%', height: '100%'}} 
+            >
+                <ScrollView contentContainerStyle={ !this.state.isLoading ? styles.container : {flex: 1, justifyContent: "center"}}>
+                    {this.state.isLoading ? 
+                        <ActivityIndicator size="large" color="#0000ff" />
+                    :
+                    <View style={{width: "100%", alignItems: "center"}}> 
+                        <View style={styles.userData}>             
                             <Text style={{fontWeight: "bold", textAlign: "center", fontSize: 22}}> 
                                 Dati Utente 
-                            </Text>
+                            </Text>                          
+                            <Text style={styles.textData}> Nome: {this.state.nome} </Text>
+                            <Text style={styles.textData}> Cognome: {this.state.cognome} </Text>
                         </View>
-                        <Text style={styles.textData}> Nome: {this.state.nome} </Text>
-                        <Text style={styles.textData}> Cognome: {this.state.cognome} </Text>
+                        <TouchableOpacity
+                            style={styles.button}
+                            onPress={this._loadQuestionnaire}>                
+                            <Text style={styles.textButton}> Carica questionari </Text>
+                        </TouchableOpacity>
+                        <View style={{width: "95%"}}>
+                            <FlatList
+                                data={this.state.question} 
+                                renderItem={this._renderElements} 
+                                keyExtractor={this._keyExtractor}
+                            />
+                        </View>
                     </View>
-                    <TouchableOpacity
-                        onPress={this._loadQuestionnaire}>
-                        <View style={styles.button}>
-                        <Text style={[styles.textButton, {color: "white"}]}> Carica questionari </Text>
-                        </View>
-                    </TouchableOpacity>
-                    <FlatList
-                        data={this.state.question} 
-                        renderItem={this._renderElements} 
-                        keyExtractor={this._keyExtractor}
-                    />
-                </View>
-            </ScrollView>
+                    }
+                </ScrollView>
+            </ImageBackground>
         );
     }
 }
@@ -183,6 +301,7 @@ const styles = StyleSheet.create({
         flex: 1,
     }, 
     userData: {
+        width: "95%",
         backgroundColor: "#F5F5F5", 
         borderWidth: 1,
         borderColor: "#AAAAAA",
@@ -194,17 +313,18 @@ const styles = StyleSheet.create({
         fontSize: 20,
     },
     button: {
-        height: 40,
+        width: 240,
         backgroundColor: "#00E5EE",
         justifyContent: "center",
         alignItems: "center",   
         borderWidth: 0,
         borderRadius: 5,
         marginVertical: 10,
-        marginHorizontal: 5,
+        paddingVertical: 5,
     },
     textButton: {
         fontSize: 24,
         fontWeight: "bold",
+        color: "white",
     },
 });

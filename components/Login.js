@@ -1,116 +1,92 @@
 import React, {Component} from "react";
-import { View, Text, StatusBar, StyleSheet } from "react-native";
-import { Card, Button, Input } from "react-native-elements";
+import { View, StatusBar, StyleSheet, Alert, TextInput, TouchableOpacity, Text, ActivityIndicator } from "react-native";
 import * as firebase from "firebase";
 
-/* 
-  Primo account
-    e-mail: nuovo@gmail.com
-    password: pippo1234
-
-  Secondo account
-    e-mail: prova@gmail.com
-    password: pluto1234
-*/
-/*
-<Button
-  loading={this.state.isLoading} // prop per visualizzare una spinner di caricamento (opzionale)
-  raised   // Aggiungi stile pulsante in rilievo (opzionale). Non ha effetto se type="clear".
-  backgroundColor={TINT_COLOR}
-  title="Login"
-  onPress={this._login}
-/>
-*/
-
 StatusBar.setHidden(true);
-const TINT_COLOR = "rgb(4, 159, 239)";
-
 
 export default class LoginForm extends Component {
-  static navigationOptions = {
-    header: null,
+
+  static navigationOptions = ({navigation}) => {
+    return {
+      title: "Login",
+      headerStyle: {
+          backgroundColor: "#EAEAEA",
+          borderBottomWidth: 2,
+          borderBottomColor: "#AAAAAA", 
+          height: 35,
+      },
+      headerTintColor: "black",
+      headerTitleStyle: {  
+          flex: 1,
+          textAlign: "center",    
+          marginBottom: 40,
+          fontWeight: "bold",
+          fontSize: 28 
+      },
+    }
   };
+  
   state = {
     isLoading: false,
-    email: "nuovo@gmail.com",
-    password: "pippo1234",
-    error: ""
+    email: "",
+    password: "",
   };
+
+  
+  _warning = () => {
+    Alert.alert(
+      'Login fallita',
+      'Inserire le credenziali corrette per accedere!',
+      [
+        {text: 'OK', onPress: () => console.log('OK Pressed')},
+      ],
+      {cancelable: false},
+    );
+  }
 
   _login = () => {
     this.setState({ isLoading: true });
     firebase
       .auth()
       .signInWithEmailAndPassword(this.state.email, this.state.password)
-      .then(user => {
+      .then(() => {
         this.setState({ isLoading: false });
-      //  console.log(user);
         this.props.navigation.navigate("Index");
       })
-      .catch(error => {
-        this.setState({ isLoading: false, error: error.message });
-        //alert(error.message);
+      .catch(() => {
+        this.setState({ isLoading: false});
+        this._warning(); 
       });
   };
-
-  _signUp = () => {
-    this.setState({ isLoading: true }); // settandolo a true abilita la props loading
-    firebase
-      .auth()
-      .createUserWithEmailAndPassword(this.state.email, this.state.password)
-      .then(user => {
-        this.setState({ isLoading: false }); // una volta registrate le credenziali si disabilita la props loading settando lo state a false e successivamente si cambia screen con l'istruzione sottostante
-      //  console.log(user);
-        this.props.navigation.navigate("Index");
-      })
-      .catch(error => {
-        this.setState({ isLoading: false, error: error.message });
-        //alert(error.message);
-      });
-  };
-
-  renderLoginOrSpinner() {
-    return (
-      <View style={{ justifyContent: "space-between", height: "40%", marginTop: 50 }}>
-        <Button
-          loading={this.state.isLoading}
-          raised
-          backgroundColor={TINT_COLOR}
-          title="Login"
-          onPress={this._login}
-        />
-        <Button
-          raised
-          loading={this.state.isLoading}
-          backgroundColor={TINT_COLOR}
-          title="Register"
-          onPress={this._signUp}
-        />
-      </View>
-    );
-  }
 
   render() {
     return (
       <View style={styles.container}>
-        <Card>     
-          <Input
-            label="E-mail"
-            placeholder="Inserisci una e-mail"
-            onChangeText={text => this.setState({ email: text })}
-            //value={this.state.email}
-          />
-          <Input
-            secureTextEntry
-            label="Password"
-            placeholder="Inserisci una password"
-            onChangeText={text => this.setState({ password: text })}
-            //value={this.state.password}
-          />
-
-          {this.renderLoginOrSpinner()}
-          <Text>{this.state.error}</Text>
-        </Card>
+        <TextInput
+          style={styles.inputBox}
+          value={this.state.email}
+          onChangeText={email => this.setState({ email })}
+          placeholder='E-mail'
+        />
+        <TextInput
+            style={styles.inputBox}
+            value={this.state.password}    
+            onChangeText={password => this.setState({ password })}
+            placeholder='Password'
+            secureTextEntry={true}
+        />
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={this._login}
+        >
+          {this.state.isLoading ? <ActivityIndicator size="small" color="#0000ff" /> : 
+            <Text style={styles.buttonText}>Accedi</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => this.props.navigation.navigate('Signup')}
+        >
+          <Text style={styles.textSignup}> Non hai ancora un account? Registrati ora! </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -118,7 +94,38 @@ export default class LoginForm extends Component {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: "center",
+      flex: 1,
+      backgroundColor: '#fff',
+      alignItems: 'center',
+      justifyContent: 'center'
+  },
+  inputBox: {
+      width: '85%',
+      margin: 10,
+      padding: 15,
+      fontSize: 16,
+      borderColor: '#d3d3d3',
+      borderBottomWidth: 1,
+      textAlign: 'center'
+  },
+  button: {
+      marginTop: 30,
+      marginBottom: 20,
+      paddingVertical: 5,
+      alignItems: 'center',
+      backgroundColor: '#F6820D',
+      borderColor: '#F6820D',
+      borderWidth: 1,
+      borderRadius: 5,
+      width: 200
+  },
+  buttonText: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#fff'
+  },
+  textSignup: {
+      fontSize: 18,
+      color: "blue",
   }
 })
