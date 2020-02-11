@@ -1,4 +1,4 @@
-# Sample Snack app
+# Lista Questionari
 
 Start project with the command: expo-cli start
 
